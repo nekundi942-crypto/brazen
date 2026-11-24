@@ -149,6 +149,11 @@ html,body{max-width:100%}html.nojs section[hidden]{display:block!important}
 <div class="row"><button class="btn blue" id="kTest">Test connection</button><button class="btn" id="kGo">Generate imaginary candles</button></div>
 <p class="small" id="kStat"></p><canvas id="kCv" width="720" height="320" style="width:100%;height:auto;border:2px solid #000;border-radius:12px;background:#fff" role="img" aria-label="Real and imaginary candles"></canvas><div id="kOut" aria-live="polite"></div></div></section>
 
+<section id="page-pat" hidden><div class="card gold"><h2>Chart patterns</h2><p class="small">Finds double tops and bottoms, head and shoulders (and inverse), falling and rising wedges, triangles and bull and bear flags from candles. Each result shows if it is still forming or the break is confirmed, a stop level and the textbook target (the pattern's height projected from the break). Textbook patterns often fail, so use the backtest to see how they did on an instrument.</p>
+<div class="row3"><div><label for="pTf">Timeframe</label><select id="pTf"><option value="300" selected>M5</option><option value="900">M15</option><option value="3600">H1</option></select></div><div><label for="pScope">Scan</label><select id="pScope"><option value="one">Checker asset</option><option value="all">All open instruments</option></select></div><div><label for="pFilter">Show</label><select id="pFilter"><option value="all">All</option><option value="bull">Bullish</option><option value="bear">Bearish</option><option value="conf">Confirmed only</option></select></div></div>
+<div class="row"><button class="btn" id="pBtn">Find patterns</button><button class="btn blue" id="pBt">Backtest checker asset</button></div><p class="small" id="pProg"></p>
+<canvas id="pCv" width="720" height="300" style="width:100%;height:auto;border:2px solid #000;border-radius:12px;background:#fff;display:none" role="img" aria-label="Pattern chart"></canvas><div id="pOut" aria-live="polite"></div></div></section>
+
 <section id="page-signals" hidden><div class="card"><h2>Signal history</h2><label for="sigSearch">Search by asset</label><input id="sigSearch" placeholder="e.g. XAUUSD"><div class="log" id="sigHist"></div><button class="btn blue" id="clearSig">Clear history</button></div></section>
 
 <section id="page-shingoli" hidden><div class="card"><h2>Shingoli: 18 assets</h2><p class="small">One mode is active. Pick an asset to load it into the signal checker.</p><div class="chips" id="modeRow"></div><div id="assetList"></div></div></section>
@@ -187,7 +192,7 @@ html,body{max-width:100%}html.nojs section[hidden]{display:block!important}
 <script>
 const $=id=>document.getElementById(id),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem('brz_'+k));return v===null||v===undefined?d:v}catch(e){return d}},save=(k,v)=>{try{localStorage.setItem('brz_'+k,JSON.stringify(v))}catch(e){}};
-const pages={home:'HOME',market:'MARKET WATCH',bot:'BOT',fish:'MICROFISH',imag:'IMAGINARY',signals:'SIGNALS',shingoli:'SHINGOLI',catalyst:'CATALYST',sharp:'SHARP',agents:'AGENTS',orderflow:'ORDER FLOW'};
+const pages={home:'HOME',market:'MARKET WATCH',bot:'BOT',fish:'MICROFISH',imag:'IMAGINARY',pat:'PATTERNS',signals:'SIGNALS',shingoli:'SHINGOLI',catalyst:'CATALYST',sharp:'SHARP',agents:'AGENTS',orderflow:'ORDER FLOW'};
 const assets=['EURUSD','GBPUSD','USDJPY','XAUUSD','US30','NAS100','BTCUSD','VIX 10','VIX 25','VIX 50','VIX 75','VIX 100','VIX 100 1s','VIX 150','VIX 200','VIX 250','VIX 300','VIX 500 1s','JUMP 75','JUMP 100','BOOM 1000','CRASH 1000','GainX','PainX'];
 const lock={'BOOM 1000':'BUY','CRASH 1000':'SELL','GainX':'SELL','PainX':'BUY'};
 const servers={Deriv:['Deriv-Server','Deriv-Server-02','Deriv-Server-03','Deriv-Real','Deriv-Demo','Deriv-Demo-Server'],'Exness MT5':['Exness-MT5Real27','Exness-MT5Real','Exness-MT5Real2','Exness-MT5Real3','Exness-MT5Real4','Exness-MT5Trial','Exness-MT5Trial2']};
@@ -431,9 +436,9 @@ function botNarrate(){if(bS.scanning)return;bS.scanning=true;scanAll(res=>{bS.sc
 if(!n)tlog('Market scan: no price data came back.');else if(!L.length)tlog('Market scan: '+n+' assets checked, none at a level.');L.slice(0,8).forEach(x=>tlog(x))})}
 
 /*FULL*/
-function scanList(items,prog,cb){const res={},total=items.length;let sent=0,got=0,fin=false,w0=null,delay=150,idle=false;const retry=[];let kill;
+function scanList(items,prog,cb,gran){const res={},total=items.length;let sent=0,got=0,fin=false,w0=null,delay=150,idle=false;const retry=[];let kill;
 const end=()=>{if(fin)return;fin=true;clearTimeout(kill);try{if(w0){w0.onclose=null;w0.close()}}catch(e){}cb(res)};kill=setTimeout(end,150000);
-const pump=()=>{if(fin)return;const i=retry.length?retry.shift():sent<total?sent++:-1;if(i<0){idle=true;return}idle=false;try{w0.send(JSON.stringify({ticks_history:items[i].code,end:'latest',count:300,style:'candles',granularity:300,req_id:i+1}))}catch(e){}setTimeout(pump,delay)};
+const pump=()=>{if(fin)return;const i=retry.length?retry.shift():sent<total?sent++:-1;if(i<0){idle=true;return}idle=false;try{w0.send(JSON.stringify({ticks_history:items[i].code,end:'latest',count:300,style:'candles',granularity:gran||300,req_id:i+1}))}catch(e){}setTimeout(pump,delay)};
 openFeed(0,w=>{w0=w;pump()},(d,w)=>{const i=(d.req_id||0)-1;if(i<0||i>=total||(items[i].code in res))return;
 if(d.error&&/rate/i.test((d.error.code||'')+' '+(d.error.message||''))){retry.push(i);delay=Math.min(delay*2,1500);if(idle)pump();return}
 res[items[i].code]=d.candles&&d.candles.length>=60?d.candles.map(k=>({open:+k.open,high:+k.high,low:+k.low,close:+k.close})):null;got++;prog(got,total);if(got===total)end()},()=>{},m=>end())}
@@ -545,6 +550,58 @@ const ok=dir===cd&&mag>=0.5;imagLast={a,code:sym,t:Date.now(),dir,mag,model:j.mo
 $('kOut').innerHTML=`<div class="verdict ${ok?'go':''}"><b>${esc(a)}: Kronos leans ${dir}</b> (${esc(j.model)}, ${j.seconds}s)<br>Forecast close ${pf.toFixed(dp)} vs now ${p0.toFixed(dp)}: ${(mv>=0?'+':'')+mv.toFixed(dp)} (${mag.toFixed(1)} ATR). Forecast range ${lo.toFixed(dp)} to ${hi.toFixed(dp)}.<br>Checker direction from Home: <b>${cd}</b>. ${ok?'Imaginary Candles aligned: the box is now ticked on Home and the Imaginary agent votes PASS.':dir!==cd?'Kronos disagrees with the checker, so Imaginary Candles is NOT ticked.':'Kronos agrees but the move is under 0.5 ATR, so Imaginary Candles is NOT ticked.'}<br><span class="small">Research model, not validated on this instrument, not financial advice.</span></div>`;done('Done.')}
 catch(e){done('Kronos bridge error: '+e.message)}},m=>done(m),400)});
 /*ENDK*/
+
+/*PAT*/
+function atrOf(c){const t=c.slice(-51,-1).map(k=>k.high-k.low).sort((a,b)=>a-b);return t[Math.floor(t.length/2)]||0}
+function zig(c,n,mins){const P=[];for(let i=n;i<c.length-1-n;i++){const w=c.slice(i-n,i+n+1);if(c[i].high===Math.max(...w.map(x=>x.high)))P.push({i,p:c[i].high,t:'H'});if(c[i].low===Math.min(...w.map(x=>x.low)))P.push({i,p:c[i].low,t:'L'})}
+P.sort((a,b)=>a.i-b.i||(a.t==='H'?-1:1));const Z=[];P.forEach(q=>{const l=Z[Z.length-1];if(!l){Z.push(q);return}if(l.t===q.t){if((q.t==='H'&&q.p>l.p)||(q.t==='L'&&q.p<l.p))Z[Z.length-1]=q;return}if(Math.abs(q.p-l.p)>=mins)Z.push(q)});return Z}
+const mirrorC=c=>c.map(k=>({open:-k.open,high:-k.low,low:-k.high,close:-k.close}));
+function tops(c){const n=c.length,last=n-1,atr=atrOf(c),px=c[last].close,Z=zig(c,3,3*atr),H=Z.filter(z=>z.t==='H'),L=Z.filter(z=>z.t==='L'),tol=Math.max(0.4*atr,Math.abs(px)*0.0003),out=[],pre=a=>a.p-Math.min(...c.slice(Math.max(0,a.i-25),a.i+1).map(k=>k.low))>=5*atr;
+const brk=(from,fn)=>{for(let j=from;j<n;j++)if(fn(c[j].close,j))return j;return -1},recent=j=>j<0||last-j<=8,low=(a,b)=>L.filter(z=>z.i>a.i&&z.i<b.i).sort((x,y)=>x.p-y.p)[0];
+if(H.length>=2){const a=H[H.length-2],b=H[H.length-1],tr=low(a,b);if(tr&&pre(a)&&b.i-a.i>=8&&Math.abs(a.p-b.p)<=tol&&Math.max(a.p,b.p)-tr.p>=4*atr&&c.slice(b.i+1).every(k=>k.high<=b.p+tol)&&last-b.i<=30){const j=brk(b.i+1,v=>v<tr.p),top=Math.max(a.p,b.p);
+if(recent(j))out.push({name:'Double top',bias:-1,state:j<0?'forming':'confirmed',brk:j<0?null:j,trigger:tr.p,stop:top+0.2*atr,target:tr.p-(top-tr.p),lines:[[a.i,a.p,b.i,b.p],[tr.i-6,tr.p,last,tr.p]]})}}
+if(H.length>=3){const a=H[H.length-3],b=H[H.length-2],d=H[H.length-1],t1=low(a,b),t2=low(b,d);
+if(t1&&t2&&pre(a)&&b.p-a.p>=1.0*atr&&b.p-d.p>=1.0*atr&&Math.abs(a.p-d.p)<=0.4*(b.p-(a.p+d.p)/2)&&last-d.i<=30){const sl=(t2.p-t1.p)/(t2.i-t1.i),nk=i=>t1.p+sl*(i-t1.i),j=brk(d.i+1,(v,i)=>v<nk(i)),hh=b.p-nk(b.i);
+if(recent(j))out.push({name:'Head and shoulders',bias:-1,state:j<0?'forming':'confirmed',brk:j<0?null:j,trigger:nk(last),stop:b.p+0.2*atr,target:nk(j<0?last:j)-hh,lines:[[t1.i,t1.p,last,nk(last)]]})}}
+return out}
+function detect(c){const n=c.length,last=n-1;if(n<60)return[];const atr=atrOf(c);if(!(atr>0))return[];const out=tops(c);
+tops(mirrorC(c)).forEach(p=>{const m=v=>-v;out.push({name:p.name==='Double top'?'Double bottom':'Inverse head and shoulders',bias:1,state:p.state,brk:p.brk,trigger:m(p.trigger),stop:m(p.stop),target:m(p.target),lines:p.lines.map(l=>[l[0],m(l[1]),l[2],m(l[3])])})});
+const Z=zig(c,3,2.5*atr),H=Z.filter(z=>z.t==='H'),L=Z.filter(z=>z.t==='L'),brk=(from,fn)=>{for(let j=from;j<n;j++)if(fn(c[j].close,j))return j;return -1};
+const fit=A=>{const m=A.length,sx=A.reduce((q,z)=>q+z.i,0),sy=A.reduce((q,z)=>q+z.p,0),sxx=A.reduce((q,z)=>q+z.i*z.i,0),sxy=A.reduce((q,z)=>q+z.i*z.p,0),d=m*sxx-sx*sx;if(!d)return null;const k=(m*sxy-sx*sy)/d,b0=(sy-k*sx)/m;return{k,b0,res:Math.max(...A.map(z=>Math.abs(z.p-(b0+k*z.i))))}};
+for(let dr=0;dr<3&&Z.length-dr>0;dr++){const lim=Z[Z.length-1-dr].i,hs=H.filter(z=>z.i<=lim).slice(-4).filter(z=>last-z.i<=130),ls=L.filter(z=>z.i<=lim).slice(-4).filter(z=>last-z.i<=130);if(hs.length<3||ls.length<3)continue;
+const fh=fit(hs),fl=fit(ls),ge=Math.max(...hs.map(z=>z.p))-Math.min(...ls.map(z=>z.p)),rt=Math.max(0.5*atr,0.12*ge);if(!(fh&&fl&&fh.res<=rt&&fl.res<=rt))continue;
+const i0=Math.min(hs[0].i,ls[0].i),lp=Math.max(hs[hs.length-1].i,ls[ls.length-1].i),span=lp-i0,u=i=>fh.b0+fh.k*i,l=i=>fl.b0+fl.k*i,g0=u(i0)-l(i0),g1=u(lp)-l(lp),rH=fh.k*span,rL=fl.k*span,E=0.6*atr,flat=r=>Math.abs(r)<=E;
+if(!(g0>=4*atr&&g1>=0.5*atr&&g1<=0.85*g0&&last-lp<=40))continue;
+let nm=null,bi=0;if(rH<-E&&rL<-E){nm='Falling wedge';bi=1}else if(rH>E&&rL>E){nm='Rising wedge';bi=-1}else if(flat(rH)&&rL>E){nm='Ascending triangle';bi=1}else if(flat(rL)&&rH<-E){nm='Descending triangle';bi=-1}else if(rH<-E&&rL>E){nm='Symmetrical triangle'}
+if(!nm)continue;const jU=brk(lp+1,(v,i)=>v>u(i)),jD=brk(lp+1,(v,i)=>v<l(i)),first=jU<0?jD:jD<0?jU:Math.min(jU,jD),lines=[[i0,u(i0),last,u(last)],[i0,l(i0),last,l(last)]];
+if(first<0){out.push({name:nm,bias:bi,state:'forming',brk:null,trigger:bi<0?l(last):u(last),stop:bi<0?u(last):l(last),target:bi<0?l(last)-g0:u(last)+g0,lines});break}
+if(last-first<=8){const up=first===jU,note=bi&&(up?1:-1)!==bi?'broke the other way':'';out.push({name:nm+(note?' (failed)':''),bias:up?1:-1,state:'confirmed',brk:first,trigger:up?u(first):l(first),stop:up?l(first):u(first),target:(up?u(first):l(first))+(up?g0:-g0),lines});break}}
+const dr=last-1;for(let k=6;k<=14;k++){const fs=n-1-k,ps=fs-10;if(ps<0)break;const pole=c[fs].close-c[ps].close;if(Math.abs(pole)<5*atr)continue;const fl=c.slice(fs,n-1),fhh=Math.max(...fl.map(x=>x.high)),fll=Math.min(...fl.map(x=>x.low)),rng=fhh-fll,drift=fl[fl.length-1].close-fl[0].close,up=pole>0,ap=Math.abs(pole);
+if(rng<=0.5*ap&&(up?drift<=0.3*atr&&fll>=c[fs].close-0.5*ap:drift>=-0.3*atr&&fhh<=c[fs].close+0.5*ap)){const bo=up?c[last].close>fhh:c[last].close<fll;out.push({name:up?'Bull flag':'Bear flag',bias:up?1:-1,state:bo?'confirmed':'forming',brk:bo?last:null,trigger:up?fhh:fll,stop:up?fll:fhh,target:(up?fhh:fll)+(up?ap:-ap),lines:[[fs,fhh,last,fhh],[fs,fll,last,fll]]});break}}
+return out}
+function patBacktest(c,K){const T={};let i=60;while(i<c.length-K-1){const P=detect(c.slice(0,i+1)).filter(p=>p.state==='confirmed'&&p.brk===i);
+if(P.length){const p=P[0],e=c[i].close,sg=p.bias,risk=sg*(e-p.stop),rew=sg*(p.target-e);if(risk>0&&rew>0){let res=0;for(let j=i+1;j<=i+K;j++){const sl=sg===1?c[j].low<=p.stop:c[j].high>=p.stop,tp=sg===1?c[j].high>=p.target:c[j].low<=p.target;if(sl){res=-1;break}if(tp){res=rew/risk;break}}(T[p.name]=T[p.name]||[]).push(res);i+=K;continue}}i++}return T}
+/*ENDP*/
+let pRes=[];
+function pDraw(c,p){const cv=$('pCv'),g=cv.getContext('2d'),W=cv.width,H=cv.height,pd=36,w0=Math.max(0,c.length-110),v=c.slice(w0),all=v.map(k=>k.high).concat(v.map(k=>k.low),[p.stop,p.target,p.trigger]),hi=Math.max(...all),lo=Math.min(...all),rg=(hi-lo)||1,bw=(W-pd*2)/v.length,y=q=>H-pd-(q-lo)/rg*(H-pd*2),x=i=>pd+(i-w0)*bw+bw/2,dp=Math.abs(c[c.length-1].close)<10?5:Math.abs(c[c.length-1].close)<1000?3:2;
+cv.style.display='block';g.setLineDash([]);g.fillStyle='#fff';g.fillRect(0,0,W,H);g.font='13px system-ui';g.fillStyle='#000';g.lineWidth=1.5;
+v.forEach((k,i)=>{const X=pd+i*bw+bw/2,top=y(Math.max(k.open,k.close)),h=Math.max(1,Math.abs(y(k.open)-y(k.close))),w=Math.max(2,bw*0.6);g.strokeStyle='#000';g.beginPath();g.moveTo(X,y(k.high));g.lineTo(X,y(k.low));g.stroke();g.fillStyle=k.close>=k.open?'#8FC8E6':'#FFF8DC';g.fillRect(X-w/2,top,w,h);g.strokeRect(X-w/2,top,w,h)});
+g.strokeStyle='#2E6E94';g.lineWidth=2.5;p.lines.forEach(l=>{g.beginPath();g.moveTo(x(l[0]),y(l[1]));g.lineTo(x(l[2]),y(l[3]));g.stroke()});
+g.setLineDash([6,4]);g.lineWidth=1.5;g.fillStyle='#000';[['trigger',p.trigger],['stop',p.stop],['target',p.target]].forEach(a=>{g.beginPath();g.moveTo(pd,y(a[1]));g.lineTo(W-pd,y(a[1]));g.stroke();g.fillText(a[0]+' '+a[1].toFixed(dp),pd+4,y(a[1])-4)});g.setLineDash([])}
+function pFind(){const scope=$('pScope').value,gran=+$('pTf').value,out=$('pOut'),a0=$('qAsset').value;$('pBtn').disabled=true;const fin=m=>{$('pBtn').disabled=false;if(m)out.textContent=m};out.textContent='Loading candles...';
+const render=(entries,note)=>{const f=$('pFilter').value;pRes=[];entries.forEach(e=>detect(e.c).forEach(pt=>pRes.push({it:e.it,c:e.c,pt})));
+let R=pRes.filter(r=>f==='bull'?r.pt.bias>0:f==='bear'?r.pt.bias<0:f==='conf'?r.pt.state==='confirmed':true);R.sort((u,v)=>(u.pt.state==='confirmed'?0:1)-(v.pt.state==='confirmed'?0:1)||((u.pt.brk===null?9e9:-u.pt.brk)-(v.pt.brk===null?9e9:-v.pt.brk)));
+const card=(r,k)=>{const p=r.pt,dp=Math.abs(r.c[r.c.length-1].close)<10?5:Math.abs(r.c[r.c.length-1].close)<1000?3:2,up=p.bias>0,rr=p.bias?Math.abs(p.target-r.c[r.c.length-1].close)/Math.abs(r.c[r.c.length-1].close-p.stop):0;
+return `<div class="verdict ${p.state==='confirmed'?'go':''}"><b>${esc(p.name)}</b> on <b>${esc(r.it.name)}</b><br>${p.bias>0?'BULLISH':p.bias<0?'BEARISH':'NEUTRAL'}, ${p.state==='confirmed'?'break confirmed '+(r.c.length-1-p.brk)+' candle(s) ago':'still forming'}.<br>`+(p.state==='confirmed'?`Idea: ${up?'BUY':'SELL'}, stop ${p.stop.toFixed(dp)}, textbook target ${p.target.toFixed(dp)} (reward to risk ${rr.toFixed(1)} from the current price).`:`Watch for a close ${p.bias<0?'below':p.bias>0?'above':'outside the lines near'} ${p.trigger.toFixed(dp)}. Textbook target ${p.target.toFixed(dp)}.`)+`<br><button class="btn blue" data-k="${k}">Show chart</button><button class="btn blue" data-code="${esc(r.it.code)}" data-name="${esc(r.it.name)}">Load in checker</button></div>`};
+const conf=pRes.filter(r=>r.pt.state==='confirmed').length;out.innerHTML=`<p><b>${R.length} pattern(s) shown</b> (${pRes.length} found, ${conf} confirmed) in ${entries.length} instrument(s). ${note||''}</p>`+(R.length?R.slice(0,40).map((r,k)=>card(r,pRes.indexOf(r))).join(''):'<p>No patterns found with these settings.</p>');fin()};
+if(scope==='one'){withSyms(()=>{const sym=SYM[a0];if(!sym){fin(a0+' has no Deriv price feed here.');return}getCandles(sym,gran,c=>render([{it:{code:sym,name:a0},c}]),m=>fin(m),400)})}
+else withSyms(()=>{if(!allSyms.length){fin('Could not load the instrument list from Deriv. Open Market Watch and check the Feed log.');return}const items=allSyms.filter(x=>x.exchange_is_open!==0&&!x.is_trading_suspended).map(x=>({code:x.underlying_symbol,name:x.underlying_symbol_name||x.underlying_symbol,mk:x.market_display_name||''}));
+out.textContent='Scanning '+items.length+' instruments...';scanList(items,(g,t)=>{$('pProg').textContent=g+' of '+t+' scanned'},res=>{$('pProg').textContent='';render(items.filter(it=>res[it.code]).map(it=>({it,c:res[it.code]})),'Needs 60+ candles per instrument.')},gran)})}
+$('pBtn').onclick=pFind;
+$('pOut').onclick=e=>{const b=e.target.closest?e.target.closest('button'):null;if(!b)return;if(b.dataset.k!==undefined){const r=pRes[+b.dataset.k];if(r){pDraw(r.c,r.pt);$('pCv').scrollIntoView&&$('pCv').scrollIntoView({block:'center'})}return}if(b.dataset.code)$('fsOut').onclick(e)};
+$('pBt').onclick=()=>withSyms(()=>{const a=$('qAsset').value,sym=SYM[a],out=$('pOut');if(!sym){out.textContent=a+' has no Deriv price feed here.';return}out.textContent='Loading 1000 candles for '+a+'...';$('pBt').disabled=true;
+getCandles(sym,+$('pTf').value,c=>{const T=patBacktest(c,40),names=Object.keys(T);$('pBt').disabled=false;
+out.innerHTML=`<div class="verdict"><b>${esc(a)}: pattern backtest, last ${c.length} candles</b><br><span class="small">Each confirmed break is entered at its close, stop at the pattern's invalidation level, target at the textbook projection, up to 40 candles, one trade per pattern at a time. A candle that touches both counts as a loss.</span></div>`+(names.length?names.map(nm=>{const r=T[nm],w=r.filter(x=>x>0).length,l=r.filter(x=>x===-1).length,avg=r.reduce((q,x)=>q+x,0)/r.length;return `<div class="ag"><span><b>${esc(nm)}</b><br><span class="small">${r.length} trades: ${w} won, ${l} lost, ${r.length-w-l} undecided. Average ${avg.toFixed(2)} R${r.length<10?'. Too few trades to trust.':''}</span></span><span class="st ${avg>0?'p':'f'}">${avg>0?'+':'-'}${Math.abs(avg).toFixed(2)}R</span></div>`}).join(''):'<p>No confirmed patterns in this history, so there is nothing to measure.</p>')},m=>{$('pBt').disabled=false;out.textContent=m},1000)});
 shingoli();renderHist();ofRender();profile();tick();setInterval(tick,1000);
 const h=location.hash.slice(1);show(pages[h]?h:'home');$('boot').style.display='none';
 </script></body></html>
